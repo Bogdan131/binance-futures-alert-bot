@@ -2,6 +2,7 @@ from collections.abc import Iterator, Sequence
 from decimal import Decimal
 from urllib.parse import quote
 
+from .checker import CandleMetrics
 from .models import Alert, AlertSpec, decimal_text
 
 
@@ -48,12 +49,14 @@ def alert_list(alarms: Sequence[Alert]) -> Iterator[str]:
     yield page
 
 
-def notification(spec: AlertSpec, price: Decimal, change_percent: Decimal | None) -> str:
-    change = "нет данных" if change_percent is None else f"{change_percent:+.2f}%"
-    url = "https://www.binance.com/ru/futures/" + quote(spec.symbol, safe="")
-    return (
-        f"{describe(spec)}\n"
-        f"Текущая цена · {decimal_text(price)} USDT\n"
-        f"За 5 мин · {change}\n"
-        f"{url}"
-    )
+def notification(spec: AlertSpec, price: Decimal, metrics: CandleMetrics) -> str:
+    change = metrics.change_percent
+    lines = [
+        describe(spec),
+        f"Текущая цена · {decimal_text(price)} USDT",
+        f"За 5 мин · {'нет данных' if change is None else f'{change:+.2f}%'}",
+    ]
+    if metrics.volume_multiple is not None:
+        lines.append(f"Объём 5 мин · ×{metrics.volume_multiple:.1f} к среднему")
+    lines.append("https://www.binance.com/ru/futures/" + quote(spec.symbol, safe=""))
+    return "\n".join(lines)

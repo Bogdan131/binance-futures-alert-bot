@@ -3,7 +3,7 @@ import logging
 from time import monotonic, time
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter
+from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import LinkPreviewOptions
 
 from .checker import candle_metrics, condition_met, cooldown_ready
@@ -28,7 +28,10 @@ class AlertMonitor:
     async def run(self, interval: int) -> None:
         while True:
             started_at = monotonic()
-            await self.check_once()
+            try:
+                await self.check_once()
+            except Exception:
+                log.exception("Сбой цикла проверки алертов, повтор в следующем цикле")
             await asyncio.sleep(max(0, interval - (monotonic() - started_at)))
 
     async def check_once(self) -> None:
@@ -69,20 +72,24 @@ class AlertMonitor:
             if not claimed:
                 continue
 
-            delivered = False
+            rearm = spec.kind == "price"
             try:
                 await self._bot.send_message(
                     alert.user_id,
-                    notification(spec, price, indicators.change_percent),
+                    notification(spec, price, indicators),
                     link_preview_options=LinkPreviewOptions(is_disabled=True),
                 )
-                delivered = True
+                rearm = False
+            except TelegramForbiddenError:
+                disabled = await asyncio.to_thread(self._storage.deactivate_user, alert.user_id)
+                log.info("Пользователь заблокировал бота, выключено алертов: %s", disabled)
+                rearm = False
             except TelegramAPIError as error:
                 log.warning("Не удалось отправить алерт #%s (%s)", alert.id, type(error).__name__)
                 if isinstance(error, TelegramRetryAfter):
                     self._telegram_paused_until = monotonic() + error.retry_after
             finally:
-                if not delivered and spec.kind == "price":
+                if rearm:
                     await asyncio.to_thread(self._storage.rearm_after_send_error, alert.id, attempted_at)
 
             if monotonic() < self._telegram_paused_until:

@@ -8,7 +8,7 @@ from typing import Literal
 from .models import Alert, AlertSpec, decimal_text
 
 
-AddStatus = Literal["added", "existing", "rearmed"]
+AddStatus = Literal["added", "existing", "rearmed", "limit"]
 
 
 class AlertStorage:
@@ -46,35 +46,54 @@ class AlertStorage:
                 """
             )
 
-    def add(self, user_id: int, spec: AlertSpec, now: int) -> tuple[int, AddStatus]:
+    def add(
+        self, user_id: int, spec: AlertSpec, now: int, max_active: int | None = None
+    ) -> tuple[int, AddStatus]:
+        """Add or re-enable an alert; returns status "limit" when max_active is reached."""
         key = (user_id, spec.symbol, spec.kind, spec.op, decimal_text(spec.value))
         with self._connect() as db:
-            inserted = db.execute(
-                """
-                INSERT INTO alerts (user_id, symbol, kind, op, value, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT (user_id, symbol, kind, op, value) DO NOTHING
-                """,
-                (*key, now),
-            )
-            if inserted.rowcount and inserted.lastrowid is not None:
-                return inserted.lastrowid, "added"
-
-            row = db.execute(
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
                 """
                 SELECT id, active FROM alerts
                 WHERE user_id = ? AND symbol = ? AND kind = ? AND op = ? AND value = ?
                 """,
                 key,
             ).fetchone()
-            if row is None:
-                raise RuntimeError("Не удалось найти сохранённый алерт.")
-            alert_id: int = row["id"]
-            if row["active"]:
-                return alert_id, "existing"
+            if existing is not None and existing["active"]:
+                return existing["id"], "existing"
+            if max_active is not None and self._active_count(db, user_id) >= max_active:
+                return (existing["id"] if existing is not None else 0), "limit"
 
-            db.execute("UPDATE alerts SET active = 1 WHERE id = ?", (alert_id,))
-            return alert_id, "rearmed"
+            if existing is not None:
+                db.execute("UPDATE alerts SET active = 1 WHERE id = ?", (existing["id"],))
+                return existing["id"], "rearmed"
+
+            inserted = db.execute(
+                """
+                INSERT INTO alerts (user_id, symbol, kind, op, value, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (*key, now),
+            )
+            if inserted.lastrowid is None:
+                raise RuntimeError("Не удалось сохранить алерт.")
+            return inserted.lastrowid, "added"
+
+    @staticmethod
+    def _active_count(db: sqlite3.Connection, user_id: int) -> int:
+        row = db.execute(
+            "SELECT COUNT(*) FROM alerts WHERE user_id = ? AND active = 1", (user_id,)
+        ).fetchone()
+        return int(row[0])
+
+    def deactivate_user(self, user_id: int) -> int:
+        """Switch off every alert of a user who blocked the bot."""
+        with self._connect() as db:
+            result = db.execute(
+                "UPDATE alerts SET active = 0 WHERE user_id = ? AND active = 1", (user_id,)
+            )
+            return result.rowcount
 
     def list_for_user(self, user_id: int) -> list[Alert]:
         with self._connect() as db:

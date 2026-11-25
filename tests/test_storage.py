@@ -44,3 +44,33 @@ def test_recurring_alert_and_user_scoped_delete(tmp_path: Path) -> None:
     assert storage.delete(100, first)
     assert not storage.list_for_user(100)
     assert [entry.id for entry in storage.list_for_user(200)] == [second]
+
+
+def test_active_limit_counts_only_enabled_alerts(tmp_path: Path) -> None:
+    storage = AlertStorage(tmp_path / "alerts.sqlite3")
+    storage.initialize()
+    first = AlertSpec("BTCUSDT", "price", ">", Decimal(100))
+    second = AlertSpec("ETHUSDT", "move", ">", Decimal(2))
+
+    first_id, _ = storage.add(1, first, now=1, max_active=1)
+    assert storage.add(1, second, now=2, max_active=1)[1] == "limit"
+    assert storage.add(1, first, now=3, max_active=1) == (first_id, "existing")
+    assert storage.add(2, second, now=4, max_active=1)[1] == "added"
+
+    [alert] = storage.list_active()[:1]
+    assert storage.claim(alert, now=10, cooldown_seconds=900)
+    assert storage.add(1, second, now=11, max_active=1)[1] == "added"
+    assert storage.add(1, first, now=12, max_active=1)[1] == "limit"
+
+
+def test_deactivate_user_keeps_other_users(tmp_path: Path) -> None:
+    storage = AlertStorage(tmp_path / "alerts.sqlite3")
+    storage.initialize()
+    spec = AlertSpec("WIFUSDT", "volume", ">", Decimal(3))
+    storage.add(1, spec, now=1)
+    storage.add(1, AlertSpec("WIFUSDT", "move", ">", Decimal(3)), now=1)
+    storage.add(2, spec, now=1)
+
+    assert storage.deactivate_user(1) == 2
+    assert [alert.user_id for alert in storage.list_active()] == [2]
+    assert storage.add(1, spec, now=5)[1] == "rearmed"

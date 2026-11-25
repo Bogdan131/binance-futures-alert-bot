@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from bot.handlers import parse_add
+from bot.commands import parse_add, parse_alert_id
 from bot.models import AlertSpec
 
 
@@ -47,3 +47,13 @@ def test_parse_add(arguments: str, expected: AlertSpec) -> None:
 def test_parse_add_invalid(arguments: str | None) -> None:
     with pytest.raises(ValueError):
         parse_add(arguments)
+
+
+def test_parse_alert_id() -> None:
+    assert parse_alert_id(" 4 ") == 4
+
+
+@pytest.mark.parametrize("arguments", [None, "", "0", "-1", "4a", "٤", "1" * 20, str(2**63)])
+def test_parse_alert_id_invalid(arguments: str | None) -> None:
+    with pytest.raises(ValueError):
+        parse_alert_id(arguments)

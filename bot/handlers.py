@@ -1,6 +1,4 @@
 import asyncio
-import re
-from decimal import Decimal
 from time import time
 
 from aiogram import F, Router
@@ -9,45 +7,9 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import Message
 
 from . import texts
+from .commands import MAX_ALERTS_PER_USER, parse_add, parse_alert_id
 from .market import BinanceMarket
-from .models import AlertSpec
 from .storage import AlertStorage
-
-
-_SYMBOL = re.compile(r"[^\W_]+(?:USDT_[0-9]{6})?")
-_POSITIVE_NUMBER = re.compile(r"(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)")
-
-
-def _number(text: str) -> Decimal:
-    if len(text) <= 64 and _POSITIVE_NUMBER.fullmatch(text):
-        value = Decimal(text.replace(",", "."))
-        if value > 0:
-            return value
-    raise ValueError("Введи положительное число. Дробную часть можно отделять точкой или запятой.")
-
-
-def parse_add(arguments: str | None) -> AlertSpec:
-    """Parse the arguments aiogram extracts from /add."""
-    parts = (arguments or "").split()
-    if len(parts) < 2:
-        raise ValueError(texts.ADD_USAGE)
-
-    symbol, kind, *args = parts
-    symbol = symbol.upper()
-    if len(symbol) > 64 or not _SYMBOL.fullmatch(symbol):
-        raise ValueError("Введи символ фьючерса, например PEPE или PEPEUSDT.")
-    if not symbol.endswith("USDT") and "_" not in symbol:
-        symbol += "USDT"
-
-    kind = kind.lower()
-    if kind == "price" and len(args) == 2 and args[0] in (">", "<"):
-        op = ">" if args[0] == ">" else "<"
-        return AlertSpec(symbol, "price", op, _number(args[1]))
-    if kind == "volume" and len(args) == 1 and args[0][:1].lower() == "x":
-        return AlertSpec(symbol, "volume", ">", _number(args[0][1:]))
-    if kind == "move" and len(args) == 1 and args[0].endswith("%"):
-        return AlertSpec(symbol, "move", ">", _number(args[0][:-1]))
-    raise ValueError(texts.ADD_USAGE)
 
 
 async def start(message: Message) -> None:
@@ -79,7 +41,14 @@ async def add_alert(message: Message, command: CommandObject, storage: AlertStor
         await message.answer(reply)
         return
 
-    alert_id, status = await asyncio.to_thread(storage.add, message.from_user.id, spec, int(time()))
+    alert_id, status = await asyncio.to_thread(
+        storage.add, message.from_user.id, spec, int(time()), MAX_ALERTS_PER_USER
+    )
+    if status == "limit":
+        await message.answer(
+            f"Можно держать не больше {MAX_ALERTS_PER_USER} включённых алертов. Удали лишние через /del."
+        )
+        return
     responses = {
         "added": f"Алерт #{alert_id} добавлен.",
         "existing": f"Алерт #{alert_id} уже включён.",
@@ -99,13 +68,10 @@ async def list_alerts(message: Message, storage: AlertStorage) -> None:
 async def delete_alert(message: Message, command: CommandObject, storage: AlertStorage) -> None:
     if message.from_user is None:
         return
-    number = (command.args or "").strip()
-    if not (1 <= len(number) <= 19 and number.isascii() and number.isdecimal()):
-        await message.answer("Укажи номер из /list. Пример /del 4.")
-        return
-    alert_id = int(number)
-    if not 0 < alert_id < 2**63:
-        await message.answer("Укажи номер из /list. Пример /del 4.")
+    try:
+        alert_id = parse_alert_id(command.args)
+    except ValueError as error:
+        await message.answer(str(error))
         return
 
     deleted = await asyncio.to_thread(storage.delete, message.from_user.id, alert_id)
