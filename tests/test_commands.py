@@ -2,8 +2,8 @@ from decimal import Decimal
 
 import pytest
 
-from bot.commands import parse_add, parse_alert_id
-from bot.models import AlertSpec
+from bot.commands import CommandError, default_language, parse_add, parse_alert_id, parse_lang
+from bot.models import AlertSpec, Language
 
 
 @pytest.mark.parametrize(
@@ -57,3 +57,27 @@ def test_parse_alert_id() -> None:
 def test_parse_alert_id_invalid(arguments: str | None) -> None:
     with pytest.raises(ValueError):
         parse_alert_id(arguments)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [(None, None), ("", None), ("  ", None), ("en", "en"), (" RU ", "ru")],
+)
+def test_parse_lang(arguments: str | None, expected: Language | None) -> None:
+    assert parse_lang(arguments) == expected
+
+
+@pytest.mark.parametrize("arguments", ["de", "en ru", "en-US"])
+def test_parse_lang_invalid_returns_translation_key(arguments: str) -> None:
+    with pytest.raises(CommandError) as raised:
+        parse_lang(arguments)
+    assert raised.value.key == "lang_usage"
+
+
+@pytest.mark.parametrize(
+    ("language_code", "expected"),
+    [("ru", "ru"), ("RU-ru", "ru"), ("uk", "ru"), ("uk-UA", "ru"),
+     ("en-US", "en"), ("de", "en"), ("", "en"), (None, "en")],
+)
+def test_default_language(language_code: str | None, expected: Language) -> None:
+    assert default_language(language_code) == expected

@@ -7,27 +7,67 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import Message
 
 from . import texts
-from .commands import MAX_ALERTS_PER_USER, parse_add, parse_alert_id
+from .commands import (
+    MAX_ALERTS_PER_USER,
+    CommandError,
+    default_language,
+    parse_add,
+    parse_alert_id,
+    parse_lang,
+)
 from .market import BinanceMarket
+from .models import LEGACY_LANGUAGE, Language
 from .storage import AlertStorage
 
 
-async def start(message: Message) -> None:
-    await message.answer(texts.WELCOME)
+async def _user_language(user_id: int, storage: AlertStorage) -> Language:
+    return await asyncio.to_thread(storage.get_language, user_id) or LEGACY_LANGUAGE
+
+
+async def start(message: Message, storage: AlertStorage) -> None:
+    user = message.from_user
+    if user is None:
+        return
+    lang = await asyncio.to_thread(
+        storage.get_or_create_language, user.id, default_language(user.language_code)
+    )
+    await message.answer(texts.translate(lang, "welcome", add_usage=texts.translate(lang, "add_usage")))
+
+
+async def change_language(message: Message, command: CommandObject, storage: AlertStorage) -> None:
+    user = message.from_user
+    if user is None:
+        return
+    try:
+        requested = parse_lang(command.args)
+    except CommandError as error:
+        lang = await _user_language(user.id, storage)
+        await message.answer(texts.translate(lang, error.key))
+        return
+
+    if requested is None:
+        lang = await _user_language(user.id, storage)
+        await message.answer(texts.translate(lang, "lang_current"))
+        return
+
+    await asyncio.to_thread(storage.set_language, user.id, requested)
+    await message.answer(texts.translate(requested, "lang_changed"))
 
 
 async def add_alert(message: Message, command: CommandObject, storage: AlertStorage, market: BinanceMarket) -> None:
-    if message.from_user is None:
+    user = message.from_user
+    if user is None:
         return
+    lang = await _user_language(user.id, storage)
     try:
         spec = parse_add(command.args)
-    except ValueError as error:
-        await message.answer(str(error))
+    except CommandError as error:
+        await message.answer(texts.translate(lang, error.key))
         return
 
     symbols = market.symbols
     if symbols is None:
-        await message.answer("Список фьючерсов Binance пока недоступен. Попробуй чуть позже.")
+        await message.answer(texts.translate(lang, "market_unavailable"))
         return
     if spec.symbol not in symbols:
         suggestion = next(
@@ -35,47 +75,47 @@ async def add_alert(message: Message, command: CommandObject, storage: AlertStor
              if f"{prefix}{spec.symbol}" in symbols),
             None,
         )
-        reply = f"Торгуемый фьючерс {spec.symbol} на Binance USDT-M не найден."
+        reply = texts.translate(lang, "symbol_unavailable", symbol=spec.symbol)
         if suggestion:
-            reply += f" Доступен {suggestion}. Укажи его символ и порог в цене этого контракта."
+            reply += " " + texts.translate(lang, "symbol_suggestion", symbol=suggestion)
         await message.answer(reply)
         return
 
     alert_id, status = await asyncio.to_thread(
-        storage.add, message.from_user.id, spec, int(time()), MAX_ALERTS_PER_USER
+        storage.add, user.id, spec, int(time()), MAX_ALERTS_PER_USER
     )
     if status == "limit":
-        await message.answer(
-            f"Можно держать не больше {MAX_ALERTS_PER_USER} включённых алертов. Удали лишние через /del."
-        )
+        await message.answer(texts.translate(lang, "alert_limit", limit=MAX_ALERTS_PER_USER))
         return
-    responses = {
-        "added": f"Алерт #{alert_id} добавлен.",
-        "existing": f"Алерт #{alert_id} уже включён.",
-        "rearmed": f"Алерт #{alert_id} снова включён.",
-    }
-    await message.answer(f"{responses[status]}\n{texts.describe(spec)}")
+
+    reply = texts.translate(lang, f"alert_{status}", alert_id=alert_id)
+    await message.answer(f"{reply}\n{texts.describe(spec, lang)}")
 
 
 async def list_alerts(message: Message, storage: AlertStorage) -> None:
-    if message.from_user is None:
+    user = message.from_user
+    if user is None:
         return
-    alerts = await asyncio.to_thread(storage.list_for_user, message.from_user.id)
-    for page in texts.alert_list(alerts):
+    lang = await _user_language(user.id, storage)
+    alerts = await asyncio.to_thread(storage.list_for_user, user.id)
+    for page in texts.alert_list(alerts, lang):
         await message.answer(page)
 
 
 async def delete_alert(message: Message, command: CommandObject, storage: AlertStorage) -> None:
-    if message.from_user is None:
+    user = message.from_user
+    if user is None:
         return
+    lang = await _user_language(user.id, storage)
     try:
         alert_id = parse_alert_id(command.args)
-    except ValueError as error:
-        await message.answer(str(error))
+    except CommandError as error:
+        await message.answer(texts.translate(lang, error.key))
         return
 
-    deleted = await asyncio.to_thread(storage.delete, message.from_user.id, alert_id)
-    await message.answer(f"Алерт #{alert_id} удалён." if deleted else f"У тебя нет алерта #{alert_id}.")
+    deleted = await asyncio.to_thread(storage.delete, user.id, alert_id)
+    key = "alert_deleted" if deleted else "alert_missing"
+    await message.answer(texts.translate(lang, key, alert_id=alert_id))
 
 
 def build_router() -> Router:
@@ -85,4 +125,5 @@ def build_router() -> Router:
     router.message.register(add_alert, Command("add"))
     router.message.register(list_alerts, Command("list"))
     router.message.register(delete_alert, Command("del"))
+    router.message.register(change_language, Command("lang"))
     return router

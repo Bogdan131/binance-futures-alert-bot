@@ -1,7 +1,9 @@
+import sqlite3
+from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
 
-from bot.models import AlertSpec
+from bot.models import Alert, AlertSpec
 from bot.storage import AlertStorage
 
 
@@ -74,3 +76,42 @@ def test_deactivate_user_keeps_other_users(tmp_path: Path) -> None:
     assert storage.deactivate_user(1) == 2
     assert [alert.user_id for alert in storage.list_active()] == [2]
     assert storage.add(1, spec, now=5)[1] == "rearmed"
+
+
+def test_initialize_migrates_existing_database(tmp_path: Path) -> None:
+    path = tmp_path / "alerts.sqlite3"
+    with closing(sqlite3.connect(path)) as db, db:
+        db.execute(
+            """
+            CREATE TABLE alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                op TEXT NOT NULL,
+                value TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                last_fired_at INTEGER,
+                created_at INTEGER NOT NULL,
+                UNIQUE (user_id, symbol, kind, op, value)
+            )
+            """
+        )
+        db.execute(
+            "INSERT INTO alerts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (7, 100, "BTCUSDT", "price", ">", "1", 0, 30, 10),
+        )
+
+    storage = AlertStorage(path)
+    storage.initialize()
+    old_alert = Alert(7, 100, AlertSpec("BTCUSDT", "price", ">", Decimal(1)), False, 30, 10)
+    assert storage.list_for_user(100) == [old_alert]
+    assert storage.get_language(100) is None
+
+    storage.set_language(100, "en")
+    restarted = AlertStorage(path)
+    restarted.initialize()
+    assert restarted.get_language(100) == "en"
+    assert restarted.get_or_create_language(100, "ru") == "en"
+    assert restarted.get_language(101) is None
+    assert restarted.list_for_user(100) == [old_alert]

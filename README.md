@@ -6,8 +6,6 @@
 
 A Telegram bot that watches Binance USDT-M futures and messages you when price, volume or a sharp move hits your condition. Each notification includes the condition, the current price, the 5-minute change, the volume multiple and a link to the chart. Only public Binance endpoints are used — no exchange API keys required.
 
-> The bot replies in Russian. English (or any other language) messages are a small change in `bot/texts.py`.
-
 ## Commands
 
 | Command | What it does |
@@ -19,8 +17,12 @@ A Telegram bot that watches Binance USDT-M futures and messages you when price, 
 | `/add ORDI move 3%` | Alert on a move of more than 3% in 5 minutes, either direction |
 | `/list` | List your alerts with their numbers; disabled ones are marked |
 | `/del 4` | Delete your alert #4 |
+| `/lang` | Show your current language and the available choices |
+| `/lang en` or `/lang ru` | Switch replies and notifications to English or Russian |
 
 Send commands in a private chat with the bot. `pepe` and `PEPEUSDT` both become `PEPEUSDT`. The symbol is checked against tradable Binance contracts quoted and margined in USDT. For prefixed contracts such as `1000PEPEUSDT`, use the exchange symbol and the contract price.
+
+On your first `/start`, the bot selects Russian for Telegram locales beginning with `ru` or `uk`, and English for other locales. You can change the saved language with `/lang en` or `/lang ru`. Existing alerts without a saved preference stay in Russian until you send `/start` to the updated bot or choose a language.
 
 ## How alerts are evaluated
 
@@ -33,7 +35,7 @@ Send commands in a private chat with the bot. `pepe` and `PEPEUSDT` both become 
 
 A single `/fapi/v1/ticker/price` request fetches all prices per cycle (every 10 seconds by default), and a new cycle waits for the previous one to finish. Candles are cached for 30 seconds per symbol and requested only for symbols with active alerts. The contract list is loaded at start-up and refreshed hourly. Failed requests are retried on schedule (the symbol list after one minute), and Binance `Retry-After` is respected.
 
-Alerts and last-fired times are stored in `data/alerts.sqlite3`, created on first start.
+Alerts, last-fired times and language preferences are stored in `data/alerts.sqlite3`, created on first start.
 
 ## Telegram token
 

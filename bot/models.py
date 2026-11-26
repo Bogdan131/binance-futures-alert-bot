@@ -4,6 +4,8 @@ from typing import Literal
 
 
 MINUTE_MS = 60_000
+Language = Literal["ru", "en"]
+LEGACY_LANGUAGE: Language = "ru"
 AlertKind = Literal["price", "volume", "move"]
 Operator = Literal[">", "<"]
 

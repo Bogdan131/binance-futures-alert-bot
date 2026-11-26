@@ -5,7 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
-from .models import Alert, AlertSpec, decimal_text
+from .models import Alert, AlertSpec, Language, decimal_text
 
 
 AddStatus = Literal["added", "existing", "rearmed", "limit"]
@@ -43,7 +43,36 @@ class AlertStorage:
                 );
 
                 CREATE INDEX IF NOT EXISTS alerts_active ON alerts(id) WHERE active = 1;
+
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id INTEGER PRIMARY KEY,
+                    lang TEXT NOT NULL CHECK (lang IN ('ru', 'en'))
+                );
                 """
+            )
+
+    def get_language(self, user_id: int) -> Language | None:
+        with self._connect() as db:
+            row = db.execute("SELECT lang FROM users WHERE user_id = ?", (user_id,)).fetchone()
+            return row["lang"] if row is not None else None
+
+    def get_or_create_language(self, user_id: int, default: Language) -> Language:
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO users (user_id, lang) VALUES (?, ?) ON CONFLICT (user_id) DO NOTHING",
+                (user_id, default),
+            )
+            row = db.execute("SELECT lang FROM users WHERE user_id = ?", (user_id,)).fetchone()
+            return row["lang"]
+
+    def set_language(self, user_id: int, lang: Language) -> None:
+        with self._connect() as db:
+            db.execute(
+                """
+                INSERT INTO users (user_id, lang) VALUES (?, ?)
+                ON CONFLICT (user_id) DO UPDATE SET lang = excluded.lang
+                """,
+                (user_id, lang),
             )
 
     def add(

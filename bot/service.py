@@ -8,6 +8,7 @@ from aiogram.types import LinkPreviewOptions
 
 from .checker import candle_metrics, condition_met, cooldown_ready
 from .market import BinanceMarket
+from .models import LEGACY_LANGUAGE
 from .storage import AlertStorage
 from .texts import notification
 
@@ -74,9 +75,10 @@ class AlertMonitor:
 
             rearm = spec.kind == "price"
             try:
+                lang = await asyncio.to_thread(self._storage.get_language, alert.user_id) or LEGACY_LANGUAGE
                 await self._bot.send_message(
                     alert.user_id,
-                    notification(spec, price, indicators),
+                    notification(spec, price, indicators, lang=lang),
                     link_preview_options=LinkPreviewOptions(is_disabled=True),
                 )
                 rearm = False
