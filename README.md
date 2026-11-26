@@ -1,43 +1,47 @@
-# Telegram-бот алертов Binance USDT-M
+# Binance USDT-M Futures Alert Bot for Telegram
+
+**English** · [Русский](README.ru.md)
 
 ![tests](https://github.com/Bogdan131/binance-futures-alert-bot/actions/workflows/tests.yml/badge.svg)
 
-Бот отслеживает цену, объём и движение фьючерсов Binance. При срабатывании он присылает в личный чат условие алерта, текущую цену, изменение за пять минут, кратность объёма и ссылку на график. Для рыночных данных используются публичные эндпоинты Binance.
+A Telegram bot that watches Binance USDT-M futures and messages you when price, volume or a sharp move hits your condition. Each notification includes the condition, the current price, the 5-minute change, the volume multiple and a link to the chart. Only public Binance endpoints are used — no exchange API keys required.
 
-## Команды
+> The bot replies in Russian. English (or any other language) messages are a small change in `bot/texts.py`.
 
-| Команда | Действие |
+## Commands
+
+| Command | What it does |
 | --- | --- |
-| `/start` | Показать подсказку |
-| `/add PEPE price > 0.0000125` | Добавить алерт на цену выше порога |
-| `/add BTC price < 60000` | Добавить алерт на цену ниже порога |
-| `/add WIF volume x3` | Следить за ростом пятиминутного объёма более чем в три раза |
-| `/add ORDI move 3%` | Следить за движением цены больше 3% в любую сторону за пять минут |
-| `/list` | Показать алерты с номерами и отметить выключенные |
-| `/del 4` | Удалить свой алерт № 4 |
+| `/start` | Show help |
+| `/add PEPE price > 0.0000125` | Alert when price goes above a level |
+| `/add BTC price < 60000` | Alert when price goes below a level |
+| `/add WIF volume x3` | Alert when 5-minute volume is more than 3× the average |
+| `/add ORDI move 3%` | Alert on a move of more than 3% in 5 minutes, either direction |
+| `/list` | List your alerts with their numbers; disabled ones are marked |
+| `/del 4` | Delete your alert #4 |
 
-Отправляй команды в личном чате с ботом. Введённые `pepe` и `PEPEUSDT` приводятся к `PEPEUSDT`. Бот сверяет символ с торгуемыми контрактами Binance, для которых валюта котировки и маржи — USDT. Для контракта с префиксом, например `1000PEPEUSDT`, укажи его биржевой символ и цену контракта.
+Send commands in a private chat with the bot. `pepe` and `PEPEUSDT` both become `PEPEUSDT`. The symbol is checked against tradable Binance contracts quoted and margined in USDT. For prefixed contracts such as `1000PEPEUSDT`, use the exchange symbol and the contract price.
 
-## Как считаются алерты
+## How alerts are evaluated
 
-- **Цена.** Сравнивается последняя цена из тикера. После уведомления ценовой алерт выключается. Повтори ту же команду `/add`, чтобы включить его снова.
-- **Объём.** Сумма объёмов последних пяти закрытых минутных свечей сравнивается со средним пятиминутным объёмом предыдущих двух часов. Среднее равно сумме объёмов предшествующих 120 свечей, делённой на 24.
-- **Движение.** Изменение в процентах считается по ценам закрытия последней свечи и свечи ровно на пять минут раньше. Сравнивается абсолютное значение изменения. Во всех условиях равенство порогу срабатывания не вызывает.
-- **Интервал уведомлений.** Один алерт срабатывает не чаще раза в 15 минут по умолчанию. Повторное добавление того же условия сохраняет номер и отсчёт интервала. Если Telegram вернул ошибку, ценовой алерт остаётся включённым, а следующая попытка возможна после интервала.
-- **Лимит.** У одного пользователя может быть до 50 включённых алертов. Если пользователь заблокировал бота, его алерты выключаются.
-- **Свечи.** Запрос ограничен 125 закрытыми минутами через `endTime`. Объём и движение проверяются при наличии непрерывной истории нужной длины. Для ценового алерта свечи запрашиваются при совпадении условия, чтобы показать изменение в уведомлении. При недоступности свечей сообщение о цене приходит с пометкой «нет данных» за пять минут.
+- **Price.** Compared with the latest ticker price. A price alert switches off after it fires; send the same `/add` again to re-enable it.
+- **Volume.** The sum of the last five closed 1-minute candles is compared with the average 5-minute volume of the previous two hours (the 120 earlier candles divided by 24).
+- **Move.** Percentage change between the close of the last candle and the close exactly five minutes earlier, compared in absolute value. Touching the threshold exactly does not trigger any alert.
+- **Cooldown.** One alert fires at most once every 15 minutes by default. Re-adding the same condition keeps its number and cooldown. If Telegram returns an error, a price alert stays enabled and is retried after the cooldown.
+- **Limits.** Up to 50 enabled alerts per user. If a user blocks the bot, their alerts are switched off.
+- **Candles.** Requests are capped at 125 closed minutes via `endTime`. Volume and move need an unbroken history of the required length. For a price alert, candles are fetched only when the condition matches, to show the 5-minute change; if they are unavailable, the message says "no data" for that line.
 
-Один запрос `/fapi/v1/ticker/price` получает цены всех контрактов за цикл, по умолчанию каждые 10 секунд. Повторный цикл ждёт завершения предыдущего. Свечи кешируются на 30 секунд на символ, а запросы делаются по символам проверяемых алертов. Список контрактов загружается при запуске и обновляется раз в час. При ошибках запросы повторяются по расписанию, для списка символов — через минуту. При ограничениях Binance учитывается `Retry-After`.
+A single `/fapi/v1/ticker/price` request fetches all prices per cycle (every 10 seconds by default), and a new cycle waits for the previous one to finish. Candles are cached for 30 seconds per symbol and requested only for symbols with active alerts. The contract list is loaded at start-up and refreshed hourly. Failed requests are retried on schedule (the symbol list after one minute), and Binance `Retry-After` is respected.
 
-Алерты и время последнего срабатывания хранятся в `data/alerts.sqlite3`. Каталог и таблица создаются при запуске.
+Alerts and last-fired times are stored in `data/alerts.sqlite3`, created on first start.
 
-## Токен Telegram
+## Telegram token
 
-Открой [@BotFather](https://t.me/BotFather), отправь `/newbot` и задай имя и username, который заканчивается на `bot`. Скопируй выданный токен в значение `BOT_TOKEN` в файле `.env`. Держи этот файл локально, он исключён из Git. [Справка Telegram о BotFather](https://core.telegram.org/bots/features#botfather)
+Open [@BotFather](https://t.me/BotFather), send `/newbot`, choose a name and a username ending in `bot`. Put the token you receive into `BOT_TOKEN` in `.env`. Keep that file local — it is excluded from Git. [Telegram docs on BotFather](https://core.telegram.org/bots/features#botfather)
 
-## Локальный запуск
+## Run locally
 
-Нужен Python 3.11 или новее. Из каталога проекта выполни команды ниже.
+Python 3.11 or newer.
 
 ```bash
 python3 -m venv .venv
@@ -46,17 +50,17 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-В Windows активируй окружение через `\.venv\Scripts\Activate.ps1` в PowerShell. Заполни `BOT_TOKEN` в `.env` и запусти бота.
+On Windows, activate with `.\.venv\Scripts\Activate.ps1` in PowerShell. Fill in `BOT_TOKEN` in `.env` and start the bot:
 
 ```bash
 python -m bot.main
 ```
 
-Открой личный чат с ботом в Telegram и отправь `/start`. При необходимости измени целочисленные `CHECK_SECONDS` и `COOLDOWN_MINUTES` в `.env`. Запускай один экземпляр long polling на токен.
+Open a private chat with your bot and send `/start`. `CHECK_SECONDS` and `COOLDOWN_MINUTES` (integers) in `.env` change the check interval and cooldown. Run one long-polling instance per token.
 
 ## Docker
 
-Создай `.env` из `.env.example` и заполни токен. Именованный том сохраняет SQLite при замене контейнера.
+Create `.env` from `.env.example` and set the token. The named volume keeps the SQLite database when the container is replaced.
 
 ```bash
 docker build -t binance-futures-alert-bot .
@@ -65,9 +69,9 @@ docker run -d --name futures-alerts --restart unless-stopped \
 docker logs -f futures-alerts
 ```
 
-## VPS с systemd
+## VPS with systemd
 
-Установи Python 3.11+ с модулем venv и скопируй проект в `/opt/binance-futures-alert-bot`. Настрой там `.venv` и `.env` по шагам локального запуска. Сервису нужен доступ на чтение исходников и право записи в `data`.
+Install Python 3.11+ with venv and copy the project to `/opt/binance-futures-alert-bot`. Set up `.venv` and `.env` there as in "Run locally". The service needs read access to the code and write access to `data`.
 
 ```bash
 sudo useradd --system --user-group --no-create-home --shell /usr/sbin/nologin futures-alerts
@@ -76,7 +80,7 @@ sudo chown futures-alerts:futures-alerts /opt/binance-futures-alert-bot/.env
 sudo chmod 600 /opt/binance-futures-alert-bot/.env
 ```
 
-Сохрани unit-файл в `/etc/systemd/system/futures-alerts.service`.
+Save the unit file as `/etc/systemd/system/futures-alerts.service`:
 
 ```ini
 [Unit]
@@ -104,22 +108,22 @@ sudo systemctl enable --now futures-alerts
 sudo journalctl -u futures-alerts -f
 ```
 
-## Тесты
+## Tests
 
-Тесты используют подготовленные свечи, временную SQLite и `httpx.MockTransport`. Для них не нужен токен и доступ к сети.
+Tests use prepared candles, a temporary SQLite database and `httpx.MockTransport` — no token or network needed.
 
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions запускает тесты на Python 3.11–3.13 при каждом push.
+GitHub Actions runs the tests on Python 3.11–3.13 on every push.
 
-В `bot/checker.py` и `bot/commands.py` находятся чистые функции расчёта, проверки условий и разбора команд, их можно тестировать без Telegram. В `bot/service.py` выполняется фоновый цикл, а доступ к Binance и SQLite вынесен в `market.py` и `storage.py`.
+`bot/checker.py` and `bot/commands.py` hold pure functions for calculations, conditions and command parsing, testable without Telegram. `bot/service.py` runs the background loop; Binance and SQLite access live in `market.py` and `storage.py`.
 
-## Что можно доработать под заказчика
+## Possible extensions
 
-- Добавить фьючерсы Bybit и OKX с выбором биржи в команде.
-- Уведомлять о росте или снижении открытого интереса.
-- Отслеживать события по адресам кошельков.
-- Подключить оплату подписки в боте и лимиты алертов по тарифу.
+- Bybit and OKX futures with an exchange choice in the command.
+- Open-interest growth or drop alerts.
+- Wallet address tracking.
+- In-bot subscription payments with per-plan alert limits.
