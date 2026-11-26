@@ -22,7 +22,7 @@ A Telegram bot that watches Binance USDT-M futures and messages you when price, 
 
 Send commands in a private chat with the bot. `pepe` and `PEPEUSDT` both become `PEPEUSDT`. The symbol is checked against tradable Binance contracts quoted and margined in USDT. For prefixed contracts such as `1000PEPEUSDT`, use the exchange symbol and the contract price.
 
-On your first `/start`, the bot selects Russian for Telegram locales beginning with `ru` or `uk`, and English for other locales. You can change the saved language with `/lang en` or `/lang ru`. Existing alerts without a saved preference stay in Russian until you send `/start` to the updated bot or choose a language.
+On a user's first command, the bot selects Russian for Telegram locales beginning with `ru` or `uk`, and English for other locales. You can change the saved language with `/lang en` or `/lang ru`. Notifications for alerts created before languages were added stay in Russian until that user sends any command.
 
 ## How alerts are evaluated
 

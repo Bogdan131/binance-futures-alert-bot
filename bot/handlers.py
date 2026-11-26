@@ -4,7 +4,7 @@ from time import time
 from aiogram import F, Router
 from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandObject, CommandStart
-from aiogram.types import Message
+from aiogram.types import Message, User
 
 from . import texts
 from .commands import (
@@ -16,12 +16,15 @@ from .commands import (
     parse_lang,
 )
 from .market import BinanceMarket
-from .models import LEGACY_LANGUAGE, Language
+from .models import Language
 from .storage import AlertStorage
 
 
-async def _user_language(user_id: int, storage: AlertStorage) -> Language:
-    return await asyncio.to_thread(storage.get_language, user_id) or LEGACY_LANGUAGE
+async def _user_language(user: User, storage: AlertStorage) -> Language:
+    """Saved language, or one chosen from the Telegram app language when the user skipped /start."""
+    return await asyncio.to_thread(
+        storage.get_or_create_language, user.id, default_language(user.language_code)
+    )
 
 
 async def start(message: Message, storage: AlertStorage) -> None:
@@ -41,12 +44,12 @@ async def change_language(message: Message, command: CommandObject, storage: Ale
     try:
         requested = parse_lang(command.args)
     except CommandError as error:
-        lang = await _user_language(user.id, storage)
+        lang = await _user_language(user, storage)
         await message.answer(texts.translate(lang, error.key))
         return
 
     if requested is None:
-        lang = await _user_language(user.id, storage)
+        lang = await _user_language(user, storage)
         await message.answer(texts.translate(lang, "lang_current"))
         return
 
@@ -58,7 +61,7 @@ async def add_alert(message: Message, command: CommandObject, storage: AlertStor
     user = message.from_user
     if user is None:
         return
-    lang = await _user_language(user.id, storage)
+    lang = await _user_language(user, storage)
     try:
         spec = parse_add(command.args)
     except CommandError as error:
@@ -96,7 +99,7 @@ async def list_alerts(message: Message, storage: AlertStorage) -> None:
     user = message.from_user
     if user is None:
         return
-    lang = await _user_language(user.id, storage)
+    lang = await _user_language(user, storage)
     alerts = await asyncio.to_thread(storage.list_for_user, user.id)
     for page in texts.alert_list(alerts, lang):
         await message.answer(page)
@@ -106,7 +109,7 @@ async def delete_alert(message: Message, command: CommandObject, storage: AlertS
     user = message.from_user
     if user is None:
         return
-    lang = await _user_language(user.id, storage)
+    lang = await _user_language(user, storage)
     try:
         alert_id = parse_alert_id(command.args)
     except CommandError as error:
