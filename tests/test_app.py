@@ -41,11 +41,11 @@ def test_language_choice_is_saved_and_used_for_replies(tmp_path: Path) -> None:
 
     async def check() -> None:
         await start(message, storage)
-        assert storage.get_language(123) == "ru"
-        assert message.answer.await_args.args[0].startswith("Привет!")
+        assert storage.get_language(123) == "uk"
+        assert message.answer.await_args.args[0].startswith("Привіт!")
 
         await change_language(message, CommandObject(prefix="/", command="lang"), storage)
-        assert "Текущий язык — русский." in message.answer.await_args.args[0]
+        assert "Поточна мова — українська." in message.answer.await_args.args[0]
         assert "/lang en" in message.answer.await_args.args[0]
 
         await change_language(message, CommandObject(prefix="/", command="lang", args="en"), storage)
