@@ -61,7 +61,7 @@ def test_parse_alert_id_invalid(arguments: str | None) -> None:
 
 @pytest.mark.parametrize(
     ("arguments", "expected"),
-    [(None, None), ("", None), ("  ", None), ("en", "en"), (" RU ", "ru")],
+    [(None, None), ("", None), ("  ", None), ("en", "en"), (" RU ", "ru"), ("uk", "uk"), ("UA", "uk")],
 )
 def test_parse_lang(arguments: str | None, expected: Language | None) -> None:
     assert parse_lang(arguments) == expected
@@ -76,7 +76,7 @@ def test_parse_lang_invalid_returns_translation_key(arguments: str) -> None:
 
 @pytest.mark.parametrize(
     ("language_code", "expected"),
-    [("ru", "ru"), ("RU-ru", "ru"), ("uk", "ru"), ("uk-UA", "ru"),
+    [("ru", "ru"), ("RU-ru", "ru"), ("uk", "uk"), ("uk-UA", "uk"),
      ("en-US", "en"), ("de", "en"), ("", "en"), (None, "en")],
 )
 def test_default_language(language_code: str | None, expected: Language) -> None:

@@ -1,7 +1,7 @@
 import re
 from decimal import Decimal
 
-from .models import AlertSpec, Language
+from .models import LANGUAGES, AlertSpec, Language
 
 
 MAX_ALERTS_PER_USER = 50
@@ -20,7 +20,10 @@ class CommandError(ValueError):
 
 
 def default_language(language_code: str | None) -> Language:
-    return "ru" if (language_code or "").lower().startswith(("ru", "uk")) else "en"
+    code = (language_code or "").lower()
+    if code.startswith("uk"):
+        return "uk"
+    return "ru" if code.startswith("ru") else "en"
 
 
 def parse_lang(arguments: str | None) -> Language | None:
@@ -28,8 +31,10 @@ def parse_lang(arguments: str | None) -> Language | None:
     lang = (arguments or "").strip().lower()
     if not lang:
         return None
-    if lang == "en" or lang == "ru":
-        return lang
+    if lang == "ua":
+        return "uk"
+    if lang in LANGUAGES:
+        return lang  # type: ignore[return-value]
     raise CommandError("lang_usage")
 
 

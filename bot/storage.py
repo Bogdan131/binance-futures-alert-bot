@@ -46,10 +46,31 @@ class AlertStorage:
 
                 CREATE TABLE IF NOT EXISTS users (
                     user_id INTEGER PRIMARY KEY,
-                    lang TEXT NOT NULL CHECK (lang IN ('ru', 'en'))
+                    lang TEXT NOT NULL CHECK (lang IN ('ru', 'en', 'uk'))
                 );
                 """
             )
+            self._allow_ukrainian(db)
+
+    @staticmethod
+    def _allow_ukrainian(db: sqlite3.Connection) -> None:
+        """Databases created before Ukrainian was added only accept 'ru' and 'en'."""
+        row = db.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").fetchone()
+        if row is None or "'uk'" in row[0]:
+            return
+        db.executescript(
+            """
+            BEGIN;
+            ALTER TABLE users RENAME TO users_old;
+            CREATE TABLE users (
+                user_id INTEGER PRIMARY KEY,
+                lang TEXT NOT NULL CHECK (lang IN ('ru', 'en', 'uk'))
+            );
+            INSERT INTO users (user_id, lang) SELECT user_id, lang FROM users_old;
+            DROP TABLE users_old;
+            COMMIT;
+            """
+        )
 
     def get_language(self, user_id: int) -> Language | None:
         with self._connect() as db:

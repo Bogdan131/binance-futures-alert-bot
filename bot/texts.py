@@ -12,7 +12,7 @@ _ADD_EXAMPLES = (
     "/add WIF volume x3\n"
     "/add ORDI move 3%"
 )
-_LANG_OPTIONS = "/lang en — English\n/lang ru — Русский"
+_LANG_OPTIONS = "/lang en — English\n/lang ru — Русский\n/lang uk — Українська"
 
 TRANSLATIONS: dict[Language, dict[str, str]] = {
     "ru": {
@@ -90,6 +90,44 @@ TRANSLATIONS: dict[Language, dict[str, str]] = {
         "volume_5m": "5-min volume · {multiple:.1f}× the average",
         "no_data": "no data",
         "chart_url": "https://www.binance.com/en/futures/{symbol}",
+    },
+    "uk": {
+        "welcome": (
+            "Привіт! Я стежу за ф'ючерсами Binance USDT-M і повідомляю, коли спрацьовують алерти.\n\n"
+            "{add_usage}\n\n"
+            "/list — показати алерти\n"
+            "/del <номер> — видалити алерт\n"
+            "/lang — показати або змінити мову"
+        ),
+        "add_usage": f"Приклади додавання\n{_ADD_EXAMPLES}",
+        "symbol_invalid": "Введи символ ф'ючерса, наприклад PEPE або PEPEUSDT.",
+        "positive_number": "Введи додатне число. Дробову частину можна відокремлювати крапкою або комою.",
+        "alert_id_invalid": "Вкажи номер із /list. Приклад: /del 4.",
+        "lang_usage": f"Обери мову однією з команд.\n{_LANG_OPTIONS}",
+        "lang_current": f"Поточна мова — українська.\n{_LANG_OPTIONS}",
+        "lang_changed": "Мову змінено на українську.",
+        "market_unavailable": "Список ф'ючерсів Binance поки недоступний. Спробуй трохи пізніше.",
+        "symbol_unavailable": "Ф'ючерс {symbol}, що торгується на Binance USDT-M, не знайдено.",
+        "symbol_suggestion": "Доступний {symbol}. Вкажи його символ і поріг у ціні цього контракту.",
+        "alert_limit": "Можна мати не більше {limit} увімкнених алертів. Видали зайві через /del.",
+        "alert_added": "Алерт #{alert_id} додано.",
+        "alert_existing": "Алерт #{alert_id} уже увімкнено.",
+        "alert_rearmed": "Алерт #{alert_id} знову увімкнено.",
+        "alert_deleted": "Алерт #{alert_id} видалено.",
+        "alert_missing": "У тебе немає алерту #{alert_id}.",
+        "price_above": "{symbol} · ціна вище {value}",
+        "price_below": "{symbol} · ціна нижче {value}",
+        "volume_condition": "{symbol} · обсяг більший за середній більш ніж у {value} раза",
+        "move_condition": "{symbol} · зміна ціни понад {value}% за 5 хв",
+        "list_empty": "Алертів поки немає. Додай перший через /add.",
+        "list_title": "Твої алерти",
+        "list_more": "Твої алерти · продовження",
+        "alert_disabled": " (вимкнено)",
+        "current_price": "Поточна ціна · {price} USDT",
+        "change_5m": "За 5 хв · {change}",
+        "volume_5m": "Обсяг 5 хв · ×{multiple:.1f} до середнього",
+        "no_data": "немає даних",
+        "chart_url": "https://www.binance.com/uk-UA/futures/{symbol}",
     },
 }
 

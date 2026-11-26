@@ -25,7 +25,8 @@ def test_volume_notification_shows_multiple() -> None:
 
 @pytest.mark.parametrize(
     ("lang", "change", "volume_label"),
-    [("ru", "За 5 мин · нет данных", "Объём"), ("en", "5-min change · no data", "5-min volume")],
+    [("ru", "За 5 мин · нет данных", "Объём"), ("en", "5-min change · no data", "5-min volume"),
+     ("uk", "За 5 хв · немає даних", "Обсяг")],
 )
 def test_notification_without_candles(lang: Language, change: str, volume_label: str) -> None:
     text = notification(
@@ -57,6 +58,7 @@ def test_english_notification_shows_volume_and_english_chart() -> None:
     [
         ("ru", "Твои алерты", "#7 BTC · цена выше 1 (выключен)", "Алертов пока нет."),
         ("en", "Your alerts", "#7 BTC · price above 1 (disabled)", "You have no alerts yet."),
+        ("uk", "Твої алерти", "#7 BTC · ціна вище 1 (вимкнено)", "Алертів поки немає."),
     ],
 )
 def test_list_is_localized(lang: Language, title: str, entry: str, empty: str) -> None:
@@ -65,11 +67,12 @@ def test_list_is_localized(lang: Language, title: str, entry: str, empty: str) -
     assert next(alert_list([], lang)).startswith(empty)
 
 
-def test_translation_keys_and_placeholders_match() -> None:
-    ru, en = TRANSLATIONS["ru"], TRANSLATIONS["en"]
-    assert ru.keys() == en.keys()
+@pytest.mark.parametrize("lang", ["en", "uk"])
+def test_translation_keys_and_placeholders_match(lang: Language) -> None:
+    ru, other = TRANSLATIONS["ru"], TRANSLATIONS[lang]
+    assert ru.keys() == other.keys()
     formatter = Formatter()
     for key in ru:
         ru_fields = {name for _, name, _, _ in formatter.parse(ru[key]) if name is not None}
-        en_fields = {name for _, name, _, _ in formatter.parse(en[key]) if name is not None}
-        assert ru_fields == en_fields, key
+        other_fields = {name for _, name, _, _ in formatter.parse(other[key]) if name is not None}
+        assert ru_fields == other_fields, key

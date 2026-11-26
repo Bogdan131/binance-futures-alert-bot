@@ -4,7 +4,7 @@
 
 ![tests](https://github.com/Bogdan131/binance-futures-alert-bot/actions/workflows/tests.yml/badge.svg)
 
-A Telegram bot that watches Binance USDT-M futures and messages you when price, volume or a sharp move hits your condition. Each notification includes the condition, the current price, the 5-minute change, the volume multiple and a link to the chart. Only public Binance endpoints are used — no exchange API keys required.
+A Telegram bot (English, Russian and Ukrainian) that watches Binance USDT-M futures and messages you when price, volume or a sharp move hits your condition. Each notification includes the condition, the current price, the 5-minute change, the volume multiple and a link to the chart. Only public Binance endpoints are used — no exchange API keys required.
 
 ## Commands
 
@@ -18,11 +18,11 @@ A Telegram bot that watches Binance USDT-M futures and messages you when price, 
 | `/list` | List your alerts with their numbers; disabled ones are marked |
 | `/del 4` | Delete your alert #4 |
 | `/lang` | Show your current language and the available choices |
-| `/lang en` or `/lang ru` | Switch replies and notifications to English or Russian |
+| `/lang en`, `/lang ru` or `/lang uk` | Switch replies and notifications to English, Russian or Ukrainian |
 
 Send commands in a private chat with the bot. `pepe` and `PEPEUSDT` both become `PEPEUSDT`. The symbol is checked against tradable Binance contracts quoted and margined in USDT. For prefixed contracts such as `1000PEPEUSDT`, use the exchange symbol and the contract price.
 
-On a user's first command, the bot selects Russian for Telegram locales beginning with `ru` or `uk`, and English for other locales. You can change the saved language with `/lang en` or `/lang ru`. Notifications for alerts created before languages were added stay in Russian until that user sends any command.
+On a user's first command, the bot selects Ukrainian for Telegram locales beginning with `uk`, Russian for `ru`, and English for the rest. You can change the saved language with `/lang en`, `/lang ru` or `/lang uk`. Notifications for alerts created before languages were added stay in Russian until that user sends any command.
 
 ## How alerts are evaluated
 

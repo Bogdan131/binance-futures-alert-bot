@@ -115,3 +115,18 @@ def test_initialize_migrates_existing_database(tmp_path: Path) -> None:
     assert restarted.get_or_create_language(100, "ru") == "en"
     assert restarted.get_language(101) is None
     assert restarted.list_for_user(100) == [old_alert]
+
+
+def test_old_users_table_is_migrated_for_ukrainian(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "alerts.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE users (user_id INTEGER PRIMARY KEY, lang TEXT NOT NULL CHECK (lang IN ('ru', 'en')))")
+        db.execute("INSERT INTO users VALUES (1, 'en')")
+    storage = AlertStorage(path)
+    storage.initialize()
+    storage.initialize()
+    assert storage.get_language(1) == "en"
+    storage.set_language(2, "uk")
+    assert storage.get_language(2) == "uk"
